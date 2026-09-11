@@ -34,8 +34,9 @@ unchanged rows.
 
 ### 1. Get the exe
 
-Download `SokiSoko.SapBridge.exe` from the release, or build it (any machine with the
-.NET 8 SDK):
+Download `SokiSoko.SapBridge.exe` from
+[**Releases**](https://github.com/sozuri/sokisoko-erp-bridge/releases), or build it (any
+machine with the .NET 8 SDK):
 
 ```powershell
 cd sokisoko-erp-bridge
