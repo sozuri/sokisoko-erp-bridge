@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+
+# Runtime state written next to the exe. settings.json holds DPAPI-sealed ERP
+# credentials and the SokiSoko API key - it must never be committed.
+settings.json
+cursors.json
+logs/
+
+# Published single-file binaries are release assets, not repo contents
+*.exe
+*.pdb

@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>SokiSoko.SapBridge</RootNamespace>
     <AssemblyName>SokiSoko.SapBridge</AssemblyName>
+    <!-- Keep in step with the release tag; surfaced by /api/health and the exe's file version. -->
+    <Version>0.1.1</Version>
     <!-- Single-file, self-contained Windows build: dotnet publish -c Release -r win-x64 -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- The bridge is a Windows-only service (DPAPI, Windows Services). -->
