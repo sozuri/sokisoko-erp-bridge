@@ -3,8 +3,8 @@
 An on-prem Windows service that mirrors ERP master data into SokiSoko — **SAP Business
 One** or **Odoo**, picked in its setup console. Use it when the ERP sits behind the
 customer's firewall and the SokiSoko server cannot reach it directly. (For ERPNext, use
-the [`erpnext/sokisoko_sync`](../erpnext/sokisoko_sync) Frappe app instead — it pushes
-from inside ERPNext.)
+the [sokisoko-erpnext-sync](https://github.com/sozuri/sokisoko-erpnext-sync) Frappe app
+instead — it pushes from inside ERPNext.)
 
 ```
 ERP (B1 Service Layer / Odoo JSON-RPC) ──(LAN)──▶ ERP Bridge ──(HTTPS, API key)──▶ SokiSoko
@@ -38,7 +38,7 @@ Download `SokiSoko.SapBridge.exe` from the release, or build it (any machine wit
 .NET 8 SDK):
 
 ```powershell
-cd agent
+cd sokisoko-erp-bridge
 dotnet publish SokiSoko.SapBridge -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish\win-x64
 ```
 
@@ -144,6 +144,6 @@ sc.exe config "SokiSokoSapBridge" obj= ".\sapbridge" password= "<password>"
 ## Tests
 
 ```powershell
-cd agent
+cd sokisoko-erp-bridge
 dotnet test
 ```
