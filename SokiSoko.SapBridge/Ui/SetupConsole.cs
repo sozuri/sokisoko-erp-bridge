@@ -275,7 +275,8 @@ async function loadSettings(){
 }
 async function loadStatus(){
  const st=await api('/api/status');
- status.innerHTML='<h2>Status</h2>'+(st.configured?'':'<p class="bad">Not configured yet — fill both sections and Save.</p>')
+ // must be $('status'): bare `status` resolves to window.status (a string), not this element
+ $('status').innerHTML='<h2>Status</h2>'+(st.configured?'':'<p class="bad">Not configured yet — fill both sections and Save.</p>')
   +'<p>'+(st.running?'sync running…':(st.lastRunAt?((st.lastRunOk?'<span class="ok">last run ok':'<span class="bad">last run failed')+'</span> — '+st.lastRunAt+' — '+st.lastRunRecords+' records'):'no sync run yet'))+'</p>'
   +(st.lastError?'<p class="bad">'+st.lastError+'</p>':'')
   +'<p>Recent:</p><code>'+(st.recent||[]).join('<br>')+'</code>';
