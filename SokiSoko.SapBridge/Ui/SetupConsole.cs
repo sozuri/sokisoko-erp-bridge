@@ -94,8 +94,13 @@ public sealed class SetupConsole : BackgroundService
         }
     }
 
+    /// <summary>The console's JS reads camelCase; without this the default PascalCase
+    /// names deserialize to undefined and every field in the form renders blank.</summary>
+    private static readonly JsonSerializerOptions JsonOpts =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     private static (int, string, string) Json(object o) =>
-        (200, JsonSerializer.Serialize(o), "application/json");
+        (200, JsonSerializer.Serialize(o, JsonOpts), "application/json");
 
     private object GetSettings()
     {
@@ -257,7 +262,7 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}
 const $=id=>document.getElementById(id);
 function showErp(){const t=erptype.value;$('card-b1').classList.toggle('hidden',t!=='sap_b1');$('card-odoo').classList.toggle('hidden',t!=='odoo');}
 async function api(path,method){const r=await fetch(path,{method:method||'GET',headers:{'Content-Type':'application/json'},body:method==='POST'?'{}':undefined});return r.json();}
-async function load(){
+async function loadSettings(){
  const s=await api('/api/settings');
  erptype.value=s.erpType||'sap_b1';showErp();
  b1url.value=s.sapB1BaseUrl||'';b1db.value=s.sapB1CompanyDb||'';b1user.value=s.sapB1Username||'';
@@ -267,6 +272,8 @@ async function load(){
  odpwset.textContent=s.odooPasswordSet?'(set)':'(not set)';odcur.value=s.odooCurrency||'';odwh.value=s.odooWarehouse||'';
  skurl.value=s.sokisokoBaseUrl||'';skkeyset.textContent=s.sokisokoApiKeySet?'(set)':'(not set)';
  skconn.value=s.sokisokoConnectionId||'';interval.value=s.intervalMinutes||5;batch.value=s.batchSize||200;
+}
+async function loadStatus(){
  const st=await api('/api/status');
  status.innerHTML='<h2>Status</h2>'+(st.configured?'':'<p class="bad">Not configured yet — fill both sections and Save.</p>')
   +'<p>'+(st.running?'sync running…':(st.lastRunAt?((st.lastRunOk?'<span class="ok">last run ok':'<span class="bad">last run failed')+'</span> — '+st.lastRunAt+' — '+st.lastRunRecords+' records'):'no sync run yet'))+'</p>'
@@ -289,7 +296,8 @@ async function save(){
 }
 async function testErp(){msg.className='';msg.textContent='testing ERP…';const j=await api('/api/test-erp','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'ERP OK — ':'ERP FAILED — ')+j.detail;}
 async function testSokisoko(){msg.className='';msg.textContent='testing SokiSoko…';const j=await api('/api/test-sokisoko','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'SokiSoko OK — ':'SokiSoko FAILED — ')+j.detail;}
-load();setInterval(load,15000);
+async function load(){await loadSettings();await loadStatus();}
+load();setInterval(loadStatus,15000);
 </script></body></html>
 """;
 }
