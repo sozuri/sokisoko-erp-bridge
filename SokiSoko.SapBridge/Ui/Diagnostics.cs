@@ -21,6 +21,10 @@ public static class Diagnostics
         if (msg.Contains("404"))
             return "Got 404 — the URL reached a server but not the Service Layer. " +
                    "Use the Service Layer base URL (https://host:50000), not the B1 client or Web Client.";
+        if (msg.Contains("400"))
+            return "B1 rejected the login request (400) — the Service Layer answered, so the URL and port " +
+                   "are right. Check the company database, username and password are all filled in and spelt " +
+                   "exactly as in B1 (the company DB is case-sensitive and must not have stray spaces).";
         if (IsUnreachable(ex))
             return "The B1 host is unreachable. Check the URL and port (default 50000), that the Service Layer " +
                    "is running (SAP B1 Service Manager), and that the firewall allows this machine through.";
@@ -63,8 +67,13 @@ public static class Diagnostics
         return msg;
     }
 
+    /// <summary>
+    /// Only true when nothing answered. A HttpRequestException carrying a StatusCode came from
+    /// EnsureSuccessStatusCode, i.e. the server replied — reporting that as "unreachable" sends
+    /// the operator off checking firewalls when the real fault is in the request.
+    /// </summary>
     private static bool IsUnreachable(Exception ex) =>
-        ex is HttpRequestException or SocketException ||
+        ex is HttpRequestException { StatusCode: null } or SocketException ||
         ex.InnerException is SocketException ||
         ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
         ex.Message.Contains("refused", StringComparison.OrdinalIgnoreCase) ||

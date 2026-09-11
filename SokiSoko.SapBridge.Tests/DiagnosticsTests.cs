@@ -31,6 +31,17 @@ public class DiagnosticsTests
     }
 
     [Fact]
+    public void B1_400_PointsAtCredentialsNotTheNetwork()
+    {
+        // EnsureSuccessStatusCode throws HttpRequestException carrying the status; the server
+        // answered, so this must not be reported as an unreachable host.
+        var msg = Diagnostics.ExplainB1(new HttpRequestException(
+            "Response status code does not indicate success: 400 (Bad Request).", null, HttpStatusCode.BadRequest));
+        Assert.Contains("company database", msg);
+        Assert.DoesNotContain("unreachable", msg);
+    }
+
+    [Fact]
     public void Sokisoko_403_PointsAtScope()
     {
         var msg = Diagnostics.ExplainSokisoko(new InvalidOperationException("ingest returned 403: forbidden"));

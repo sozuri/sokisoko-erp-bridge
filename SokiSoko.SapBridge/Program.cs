@@ -24,17 +24,24 @@ builder.Services.AddSingleton<SettingsStore>();
 builder.Services.AddSingleton<RuntimeSettings>();
 builder.Services.AddSingleton<CursorStore>();
 builder.Services.AddSingleton<SyncStatus>();
-builder.Services.AddSingleton<B1SessionManager>();
-builder.Services.AddHttpClient<B1Client>()
-    .ConfigurePrimaryHttpMessageHandler(sp => new HttpClientHandler
+// On-prem B1 Service Layer commonly uses a self-signed cert; opt out in settings only.
+// Both the login and the paged reads must use this, or the very first TLS handshake
+// (Login, from B1SessionManager) fails however the setting is set.
+static HttpClientHandler B1Handler(IServiceProvider sp) => new()
+{
+    ServerCertificateCustomValidationCallback = (req, cert, chain, errors) =>
     {
-        // On-prem B1 Service Layer commonly uses a self-signed cert; opt out in settings only.
-        ServerCertificateCustomValidationCallback = (req, cert, chain, errors) =>
-        {
-            var allow = sp.GetRequiredService<RuntimeSettings>().Current.SapB1AllowUntrustedCertificate;
-            return allow || errors == System.Net.Security.SslPolicyErrors.None;
-        }
-    });
+        var allow = sp.GetRequiredService<RuntimeSettings>().Current.SapB1AllowUntrustedCertificate;
+        return allow || errors == System.Net.Security.SslPolicyErrors.None;
+    }
+};
+
+// B1SessionManager caches the session cookie, so it stays a singleton and takes the
+// named client by hand — AddHttpClient<T> would register it as a transient.
+builder.Services.AddHttpClient("b1").ConfigurePrimaryHttpMessageHandler(B1Handler);
+builder.Services.AddSingleton<B1SessionManager>(sp => ActivatorUtilities.CreateInstance<B1SessionManager>(
+    sp, sp.GetRequiredService<IHttpClientFactory>().CreateClient("b1")));
+builder.Services.AddHttpClient<B1Client>().ConfigurePrimaryHttpMessageHandler(B1Handler);
 builder.Services.AddHttpClient<OdooClient>();
 builder.Services.AddHttpClient<SokisokoClient>();
 builder.Services.AddSingleton<B1Source>();
