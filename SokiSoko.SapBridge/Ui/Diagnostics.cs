@@ -12,6 +12,19 @@ public static class Diagnostics
     public static string ExplainB1(Exception ex)
     {
         var msg = ex.Message;
+        // Plain HTTP to the Service Layer's TLS port is refused by Apache with an empty 400
+        // long before B1 sees the request - it looks like a credential fault but is not.
+        if (msg.Contains("login to http://", StringComparison.OrdinalIgnoreCase))
+            return "The Service Layer URL starts with http://. B1 serves HTTPS on port 50000 and " +
+                   "rejects plain HTTP with an empty 400 before the login is ever evaluated. " +
+                   "Change the URL to https:// — the credentials are not the problem here.";
+        if (msg.Contains("Invalid login credential", StringComparison.OrdinalIgnoreCase))
+            return "B1 rejected the credentials. It returns this same message for a wrong password, " +
+                   "an unknown user and a company database it doesn't recognise, so check all three: " +
+                   "the company DB is case-sensitive, and the user needs a Service Layer licence.";
+        if (msg.Contains("NONE-SSO", StringComparison.OrdinalIgnoreCase) || msg.Contains("-304"))
+            return "The SLD rejected the login (-304). The username or password is wrong, or the user " +
+                   "has no B1 licence assigned (B1 → Administration → License → License Administration).";
         if (msg.Contains("401") || msg.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase))
             return "B1 rejected the login (401). Check the company database name, username and password; " +
                    "the user needs a B1 license with Service Layer access (B1 → Administration → License).";

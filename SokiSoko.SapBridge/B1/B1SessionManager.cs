@@ -47,7 +47,15 @@ public sealed class B1SessionManager
                 UserName = s.SapB1Username,
                 Password = s.SapB1Password,
             }, ct);
-            resp.EnsureSuccessStatusCode();
+            if (!resp.IsSuccessStatusCode)
+            {
+                // EnsureSuccessStatusCode would discard the body, and B1 puts the only useful
+                // detail there ("Invalid login credential.", "Fail to NONE-SSO login from SLD.").
+                var err = (await resp.Content.ReadAsStringAsync(ct)).Trim();
+                if (err.Length > 400) err = err[..400];
+                throw new InvalidOperationException(
+                    $"B1 login to {url} returned {(int)resp.StatusCode}: {(err.Length > 0 ? err : "<empty body>")}");
+            }
 
             var body = await resp.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: ct)
                        ?? throw new InvalidOperationException("B1 login returned an empty body");
