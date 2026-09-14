@@ -7,9 +7,12 @@
     <RootNamespace>SokiSoko.SapBridge</RootNamespace>
     <AssemblyName>SokiSoko.SapBridge</AssemblyName>
     <!-- Keep in step with the release tag; surfaced by /api/health and the exe's file version. -->
-    <Version>0.1.3</Version>
+    <Version>0.2.0</Version>
     <!-- Single-file, self-contained Windows build: dotnet publish -c Release -r win-x64 -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- SqlClient ships a native SNI dll; without this it is emitted beside the exe and
+         the "copy one file" deployment in the README quietly breaks. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- The bridge is a Windows-only service (DPAPI, Windows Services). -->
     <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
@@ -18,6 +21,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
@@ -25,3 +29,4 @@
   </ItemGroup>
 
 </Project>
+

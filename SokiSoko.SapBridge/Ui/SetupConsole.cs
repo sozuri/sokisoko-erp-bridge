@@ -111,6 +111,8 @@ public sealed class SetupConsole : BackgroundService
             s.SapB1BaseUrl, s.SapB1CompanyDb, s.SapB1Username,
             sapB1PasswordSet = s.SapB1Password.Length > 0,
             s.SapB1AllowUntrustedCertificate, s.SapB1PriceList, s.SapB1Currency,
+            s.SqlServer, s.SqlDatabase, s.SqlUsername, s.SqlIntegratedSecurity,
+            sqlPasswordSet = s.SqlPassword.Length > 0,
             s.OdooBaseUrl, s.OdooDatabase, s.OdooUsername,
             odooPasswordSet = s.OdooPassword.Length > 0,
             s.OdooCurrency, s.OdooWarehouse,
@@ -131,7 +133,12 @@ public sealed class SetupConsole : BackgroundService
 
         var next = s with
         {
-            ErpType = Str("erpType", s.ErpType) is "odoo" ? "odoo" : "sap_b1",
+            ErpType = Str("erpType", s.ErpType) switch { "odoo" => "odoo", "sql_direct" => "sql_direct", _ => "sap_b1" },
+            SqlServer = Str("sqlServer", s.SqlServer),
+            SqlDatabase = Str("sqlDatabase", s.SqlDatabase),
+            SqlUsername = Str("sqlUsername", s.SqlUsername),
+            SqlPassword = Str("sqlPassword", s.SqlPassword),
+            SqlIntegratedSecurity = Bool("sqlIntegratedSecurity", s.SqlIntegratedSecurity),
             SapB1BaseUrl = Str("sapB1BaseUrl", s.SapB1BaseUrl),
             SapB1CompanyDb = Str("sapB1CompanyDb", s.SapB1CompanyDb),
             SapB1Username = Str("sapB1Username", s.SapB1Username),
@@ -225,9 +232,21 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}
 
 <div class="card"><h2>ERP system</h2>
 <label>Sync from<select id="erptype" onchange="showErp()">
-<option value="sap_b1">SAP Business One</option>
+<option value="sap_b1">SAP Business One (Service Layer)</option>
+<option value="sql_direct">SAP Business One (direct SQL, read-only)</option>
 <option value="odoo">Odoo</option>
 </select></label></div>
+
+<div class="card hidden" id="card-sql"><h2>SAP Business One &mdash; direct SQL</h2>
+<p style="font-size:.85rem;color:#555;margin:.2rem 0 0">Reads the company database directly. Use when the Service
+Layer is unavailable. Read-only &mdash; grant the login <code>SELECT</code> and nothing else.</p>
+<div class="row"><div><label>SQL Server<input id="sqlsrv" placeholder="localhost"></label></div>
+<div><label>Company database<input id="sqldb" placeholder="SBO_COMPANY"></label></div></div>
+<label>Windows authentication<select id="sqlint"><option value="false">no &mdash; use a SQL login</option><option value="true">yes &mdash; run as the service account</option></select></label>
+<div class="row"><div><label>SQL username<input id="sqluser" placeholder="sokisoko_bridge"></label></div>
+<div><label>SQL password <span id="sqlpwset"></span><input id="sqlpw" type="password" placeholder="leave blank to keep current"></label></div></div>
+<div class="row"><div><label>Base price list #<input id="sqlpl" type="number" value="1"></label></div>
+<div><label>Default currency<input id="sqlcur" placeholder="KES"></label></div></div></div>
 
 <div class="card" id="card-b1"><h2>SAP Business One</h2>
 <label>Service Layer URL<input id="b1url" placeholder="https://b1-host:50000"></label>
@@ -260,7 +279,10 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}
 <div id="msg"></div>
 <script>
 const $=id=>document.getElementById(id);
-function showErp(){const t=erptype.value;$('card-b1').classList.toggle('hidden',t!=='sap_b1');$('card-odoo').classList.toggle('hidden',t!=='odoo');}
+function showErp(){const t=erptype.value;
+ $('card-b1').classList.toggle('hidden',t!=='sap_b1');
+ $('card-sql').classList.toggle('hidden',t!=='sql_direct');
+ $('card-odoo').classList.toggle('hidden',t!=='odoo');}
 async function api(path,method){const r=await fetch(path,{method:method||'GET',headers:{'Content-Type':'application/json'},body:method==='POST'?'{}':undefined});return r.json();}
 async function loadSettings(){
  const s=await api('/api/settings');
@@ -268,6 +290,9 @@ async function loadSettings(){
  b1url.value=s.sapB1BaseUrl||'';b1db.value=s.sapB1CompanyDb||'';b1user.value=s.sapB1Username||'';
  b1pwset.textContent=s.sapB1PasswordSet?'(set)':'(not set)';b1pl.value=s.sapB1PriceList||1;b1cur.value=s.sapB1Currency||'';
  b1cert.value=s.sapB1AllowUntrustedCertificate?'true':'false';
+ sqlsrv.value=s.sqlServer||'';sqldb.value=s.sqlDatabase||'';sqluser.value=s.sqlUsername||'';
+ sqlint.value=s.sqlIntegratedSecurity?'true':'false';sqlpwset.textContent=s.sqlPasswordSet?'(set)':'(not set)';
+ sqlpl.value=s.sapB1PriceList||1;sqlcur.value=s.sapB1Currency||'';
  odurl.value=s.odooBaseUrl||'';oddb.value=s.odooDatabase||'';oduser.value=s.odooUsername||'';
  odpwset.textContent=s.odooPasswordSet?'(set)':'(not set)';odcur.value=s.odooCurrency||'';odwh.value=s.odooWarehouse||'';
  skurl.value=s.sokisokoBaseUrl||'';skkeyset.textContent=s.sokisokoApiKeySet?'(set)':'(not set)';
@@ -285,15 +310,19 @@ async function save(){
  const body={erpType:erptype.value,
   sapB1BaseUrl:b1url.value,sapB1CompanyDb:b1db.value,sapB1Username:b1user.value,
   sapB1AllowUntrustedCertificate:b1cert.value==='true',sapB1PriceList:+b1pl.value,sapB1Currency:b1cur.value,
+  sqlServer:sqlsrv.value,sqlDatabase:sqldb.value,sqlUsername:sqluser.value,
+  sqlIntegratedSecurity:sqlint.value==='true',
   odooBaseUrl:odurl.value,odooDatabase:oddb.value,odooUsername:oduser.value,
   odooCurrency:odcur.value,odooWarehouse:odwh.value,
   sokisokoBaseUrl:skurl.value,sokisokoConnectionId:+skconn.value,intervalMinutes:+interval.value,batchSize:+batch.value};
+ if(erptype.value==='sql_direct'){body.sapB1PriceList=+sqlpl.value;body.sapB1Currency=sqlcur.value;}
  if(b1pw.value)body.sapB1Password=b1pw.value;
+ if(sqlpw.value)body.sqlPassword=sqlpw.value;
  if(odpw.value)body.odooPassword=odpw.value;
  if(skkey.value)body.sokisokoApiKey=skkey.value;
  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  const j=await r.json();msg.className=j.ok?'ok':'bad';msg.textContent=j.ok?'saved — the next sync run uses these settings':'save failed';
- b1pw.value='';skkey.value='';load();
+ b1pw.value='';sqlpw.value='';skkey.value='';load();
 }
 async function testErp(){msg.className='';msg.textContent='testing ERP…';const j=await api('/api/test-erp','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'ERP OK — ':'ERP FAILED — ')+j.detail;}
 async function testSokisoko(){msg.className='';msg.textContent='testing SokiSoko…';const j=await api('/api/test-sokisoko','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'SokiSoko OK — ':'SokiSoko FAILED — ')+j.detail;}

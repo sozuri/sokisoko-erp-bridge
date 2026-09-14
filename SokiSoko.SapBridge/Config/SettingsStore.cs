@@ -34,6 +34,7 @@ public sealed class SettingsStore
                 var s = JsonSerializer.Deserialize<BridgeSettings>(File.ReadAllText(_path)) ?? new BridgeSettings();
                 s.SapB1Password = Unprotect(s.SapB1Password);
                 s.OdooPassword = Unprotect(s.OdooPassword);
+                s.SqlPassword = Unprotect(s.SqlPassword);
                 s.SokisokoApiKey = Unprotect(s.SokisokoApiKey);
                 return s;
             }
@@ -53,6 +54,7 @@ public sealed class SettingsStore
             {
                 SapB1Password = Protect(s.SapB1Password),
                 OdooPassword = Protect(s.OdooPassword),
+                SqlPassword = Protect(s.SqlPassword),
                 SokisokoApiKey = Protect(s.SokisokoApiKey),
             };
             File.WriteAllText(_path, JsonSerializer.Serialize(copy, new JsonSerializerOptions { WriteIndented = true }));
@@ -95,6 +97,14 @@ public sealed record BridgeSettings
     public int SapB1PriceList { get; set; } = 1;
     public string SapB1Currency { get; set; } = "";
 
+    // Direct SQL read of the B1 company database, for installations where the Service
+    // Layer is unavailable. Read-only: the login should hold SELECT and nothing else.
+    public string SqlServer { get; set; } = "";
+    public string SqlDatabase { get; set; } = "";
+    public string SqlUsername { get; set; } = "";
+    public string SqlPassword { get; set; } = "";
+    public bool SqlIntegratedSecurity { get; set; }
+
     public string OdooBaseUrl { get; set; } = "";
     public string OdooDatabase { get; set; } = "";
     public string OdooUsername { get; set; } = "";
@@ -108,9 +118,14 @@ public sealed record BridgeSettings
     public int IntervalMinutes { get; set; } = 5;
     public int BatchSize { get; set; } = 200;
 
-    public bool ErpConfigured => ErpType == "odoo"
-        ? OdooBaseUrl.Length > 0 && OdooDatabase.Length > 0 && OdooUsername.Length > 0
-        : SapB1BaseUrl.Length > 0 && SapB1CompanyDb.Length > 0 && SapB1Username.Length > 0;
+    public bool ErpConfigured => ErpType switch
+    {
+        "odoo" => OdooBaseUrl.Length > 0 && OdooDatabase.Length > 0 && OdooUsername.Length > 0,
+        // Integrated security needs no username; a SQL login needs one.
+        "sql_direct" => SqlServer.Length > 0 && SqlDatabase.Length > 0
+                        && (SqlIntegratedSecurity || SqlUsername.Length > 0),
+        _ => SapB1BaseUrl.Length > 0 && SapB1CompanyDb.Length > 0 && SapB1Username.Length > 0,
+    };
 
     public bool IsConfigured =>
         ErpConfigured && SokisokoBaseUrl.Length > 0 && SokisokoApiKey.Length > 0 && SokisokoConnectionId > 0;

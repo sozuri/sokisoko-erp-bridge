@@ -46,6 +46,7 @@ builder.Services.AddHttpClient<OdooClient>();
 builder.Services.AddHttpClient<SokisokoClient>();
 builder.Services.AddSingleton<B1Source>();
 builder.Services.AddSingleton<OdooSource>();
+builder.Services.AddSingleton<SokiSoko.SapBridge.Sql.SqlSource>();
 builder.Services.AddSingleton<ErpSourceFactory>();
 
 builder.Services.AddHostedService<SyncWorker>();
