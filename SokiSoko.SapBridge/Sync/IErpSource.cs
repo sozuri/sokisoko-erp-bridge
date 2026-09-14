@@ -20,3 +20,12 @@ public interface IErpSource
     /// <summary>Cheap connectivity check for the setup console's test button.</summary>
     Task<string> TestAsync(CancellationToken ct);
 }
+
+/// <summary>
+/// Sources that can name their own codes. Optional: a source without it still syncs, the
+/// mapping screens just show bare codes.
+/// </summary>
+public interface IErpCodeSource
+{
+    Task<List<InboundCode>> PollCodesAsync(CancellationToken ct);
+}

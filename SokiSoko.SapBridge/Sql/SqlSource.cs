@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ namespace SokiSoko.SapBridge.Sql;
 /// Emits the same records as <see cref="B1.B1Source"/> and the same cursor format, so the
 /// two providers are interchangeable without re-backfilling.
 /// </summary>
-public sealed class SqlSource : IErpSource
+public sealed class SqlSource : IErpSource, IErpCodeSource
 {
     private readonly RuntimeSettings _settings;
     private readonly ILogger<SqlSource> _log;
@@ -74,12 +74,12 @@ public sealed class SqlSource : IErpSource
 
     private const string ProductSql = @"
 SELECT T0.ItemCode, T0.ItemName, T0.FrgnName, T0.InvntryUom, T0.ItmsGrpCod,
-       T0.validFor, T0.LastPurPrc, T0.UpdateDate, T0.UpdateTime,
+       T0.validFor, T0.LastPurPrc, T0.UpdateDate, UpdateTime = T0.UpdateTS,
        GroupName = T1.ItmsGrpNam
 FROM OITM T0
 LEFT JOIN OITB T1 ON T1.ItmsGrpCod = T0.ItmsGrpCod
 {0}
-ORDER BY T0.UpdateDate, T0.UpdateTime, T0.ItemCode";
+ORDER BY T0.UpdateDate, T0.UpdateTS, T0.ItemCode";
 
     public async Task<string> PollProductsAsync(string since, Func<InboundProduct, Task> apply, CancellationToken ct)
     {
@@ -101,10 +101,11 @@ ORDER BY T0.UpdateDate, T0.UpdateTime, T0.ItemCode";
                 Description = SqlMapper.S(rd["FrgnName"]),
                 BaseUnit = SqlMapper.S(rd["InvntryUom"]),
                 Cost = SqlMapper.N(rd["LastPurPrc"]),
+                // Numeric code, not the name - the server resolves names from the codes
+                // list and uses this to file the product under its mapped category.
                 Attributes = new Dictionary<string, string>
                 {
-                    ["ItemGroup"] = SqlMapper.S(rd["GroupName"]),
-                    ["Valid"] = SqlMapper.S(rd["validFor"]),
+                    ["b1_items_group"] = SqlMapper.S(rd["ItmsGrpCod"]),
                 },
             };
             if (p.ExternalID.Length == 0) continue;
@@ -118,13 +119,13 @@ ORDER BY T0.UpdateDate, T0.UpdateTime, T0.ItemCode";
     // ---- customers ------------------------------------------------------------------
 
     private const string CustomerSql = @"
-SELECT T0.CardCode, T0.CardName, T0.LicTradNum, T0.CreditLine, T0.UpdateDate, T0.UpdateTime,
+SELECT T0.CardCode, T0.CardName, T0.LicTradNum, T0.CreditLine, T0.UpdateDate, UpdateTime = T0.UpdateTS,
        GroupName = T1.GroupName, PayDays = T2.ExtraDays
 FROM OCRD T0
 LEFT JOIN OCRG T1 ON T1.GroupCode = T0.GroupCode
 LEFT JOIN OCTG T2 ON T2.GroupNum  = T0.GroupNum
 WHERE T0.CardType = 'C'{1}
-ORDER BY T0.UpdateDate, T0.UpdateTime, T0.CardCode";
+ORDER BY T0.UpdateDate, T0.UpdateTS, T0.CardCode";
 
     private const string AddressSql = @"
 SELECT CardCode, AdresType, Street, Block, City, State, ZipCode, Country
@@ -191,11 +192,11 @@ WHERE CardCode IN (SELECT CardCode FROM OCRD WHERE CardType = 'C')";
     // ---- prices ---------------------------------------------------------------------
 
     private const string PriceSql = @"
-SELECT T0.ItemCode, T0.Price, T0.Currency, T1.UpdateDate, T1.UpdateTime
+SELECT T0.ItemCode, T0.Price, T0.Currency, T1.UpdateDate, UpdateTime = T1.UpdateTS
 FROM ITM1 T0
 INNER JOIN OITM T1 ON T1.ItemCode = T0.ItemCode
 WHERE T0.PriceList = @priceList AND T0.Price > 0{1}
-ORDER BY T1.UpdateDate, T1.UpdateTime, T0.ItemCode";
+ORDER BY T1.UpdateDate, T1.UpdateTS, T0.ItemCode";
 
     private const string SpecialPriceSql = @"
 SELECT CardCode, ItemCode, Price, Currency
@@ -288,6 +289,40 @@ WHERE T0.OnHand <> 0 OR T0.IsCommited <> 0 OR T0.OnOrder <> 0";
         }
     }
 
+    // ---- codes ----------------------------------------------------------------------
+
+    public async Task<List<InboundCode>> PollCodesAsync(CancellationToken ct)
+    {
+        var codes = new List<InboundCode>();
+        await using var c = await OpenAsync(ct);
+
+        await using (var cmd = c.CreateCommand())
+        {
+            cmd.CommandText = "SELECT WhsCode, WhsName FROM OWHS ORDER BY WhsCode";
+            await using var rd = await cmd.ExecuteReaderAsync(ct);
+            while (await rd.ReadAsync(ct))
+            {
+                var code = SqlMapper.S(rd["WhsCode"]);
+                if (code.Length == 0) continue;
+                codes.Add(new InboundCode { Kind = CodeKinds.Warehouse, Code = code, Name = SqlMapper.S(rd["WhsName"]) });
+            }
+        }
+
+        await using (var cmd = c.CreateCommand())
+        {
+            cmd.CommandText = "SELECT ItmsGrpCod, ItmsGrpNam FROM OITB ORDER BY ItmsGrpCod";
+            await using var rd = await cmd.ExecuteReaderAsync(ct);
+            while (await rd.ReadAsync(ct))
+            {
+                var code = SqlMapper.S(rd["ItmsGrpCod"]);
+                if (code.Length == 0) continue;
+                codes.Add(new InboundCode { Kind = CodeKinds.ItemGroup, Code = code, Name = SqlMapper.S(rd["ItmsGrpNam"]) });
+            }
+        }
+
+        return codes;
+    }
+
     // ---- delta helpers --------------------------------------------------------------
 
     /// <summary>
@@ -295,10 +330,10 @@ WHERE T0.OnHand <> 0 OR T0.IsCommited <> 0 OR T0.OnOrder <> 0";
     /// crash mid-batch never drops a record - identical semantics to B1Client.DeltaFilter.
     /// </summary>
     public static string DeltaWhere(string since, string alias) =>
-        since.Length == 0 ? "" : $"WHERE ({alias}.UpdateDate > @sinceDate OR ({alias}.UpdateDate = @sinceDate AND {alias}.UpdateTime >= @sinceTime))";
+        since.Length == 0 ? "" : $"WHERE ({alias}.UpdateDate > @sinceDate OR ({alias}.UpdateDate = @sinceDate AND {alias}.UpdateTS >= @sinceTime))";
 
     public static string DeltaAnd(string since, string alias) =>
-        since.Length == 0 ? "" : $" AND ({alias}.UpdateDate > @sinceDate OR ({alias}.UpdateDate = @sinceDate AND {alias}.UpdateTime >= @sinceTime))";
+        since.Length == 0 ? "" : $" AND ({alias}.UpdateDate > @sinceDate OR ({alias}.UpdateDate = @sinceDate AND {alias}.UpdateTS >= @sinceTime))";
 
     public static (DateTime date, int time) SplitCursor(string since)
     {
@@ -307,9 +342,14 @@ WHERE T0.OnHand <> 0 OR T0.IsCommited <> 0 OR T0.OnOrder <> 0";
         var time = 0;
         if (parts.Length == 2)
         {
+            // Must produce the same HHmmss shape UpdateTS holds, or the >= comparison
+            // in the delta predicate silently compares against the wrong magnitude.
             var hms = parts[1].Split(':');
             if (hms.Length >= 2 && int.TryParse(hms[0], out var hh) && int.TryParse(hms[1], out var mm))
-                time = hh * 100 + mm;
+            {
+                var ss = hms.Length >= 3 && int.TryParse(hms[2], out var s) ? s : 0;
+                time = hh * 10000 + mm * 100 + ss;
+            }
         }
         return (date, time);
     }
@@ -322,3 +362,5 @@ WHERE T0.OnHand <> 0 OR T0.IsCommited <> 0 OR T0.OnOrder <> 0";
         cmd.Parameters.Add(new SqlParameter("@sinceTime", SqlDbType.Int) { Value = time });
     }
 }
+
+

@@ -11,7 +11,34 @@ public sealed class IngestBatch
     [JsonPropertyName("stock")] public List<InboundStock> Stock { get; set; } = new();
     [JsonPropertyName("prices")] public List<InboundPrice> Prices { get; set; } = new();
     [JsonPropertyName("customers")] public List<InboundCustomer> Customers { get; set; } = new();
+    /// <summary>Names the ERP gives its own codes, so mapping screens show "101 — First Floor
+    /// Warehouse" rather than a bare number.</summary>
+    [JsonPropertyName("codes")] public List<InboundCode> Codes { get; set; } = new();
     [JsonPropertyName("cursors")] public Dictionary<string, string> Cursors { get; set; } = new();
+    /// <summary>Without this a bridge that cannot reach its ERP is silent and merely looks idle.</summary>
+    [JsonPropertyName("agent")] public AgentReport Agent { get; set; } = new();
+}
+
+public sealed class AgentReport
+{
+    [JsonPropertyName("version")] public string Version { get; set; } = "";
+    [JsonPropertyName("error")] public string Error { get; set; } = "";
+}
+
+public sealed class InboundCode
+{
+    /// <summary>"warehouse", "item_group", "manufacturer" or "supplier".</summary>
+    [JsonPropertyName("Kind")] public string Kind { get; set; } = "";
+    [JsonPropertyName("Code")] public string Code { get; set; } = "";
+    [JsonPropertyName("Name")] public string Name { get; set; } = "";
+}
+
+public static class CodeKinds
+{
+    public const string Warehouse = "warehouse";
+    public const string ItemGroup = "item_group";
+    public const string Manufacturer = "manufacturer";
+    public const string Supplier = "supplier";
 }
 
 public sealed class InboundProduct

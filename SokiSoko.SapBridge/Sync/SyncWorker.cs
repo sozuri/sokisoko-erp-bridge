@@ -51,6 +51,9 @@ public sealed class SyncWorker : BackgroundService
                 {
                     _log.LogError(ex, "sync run failed; retrying at next interval");
                     _status.Fail(ex);
+                    // Tell the server why, so a bridge that cannot reach its ERP reads as
+                    // broken in the sync log rather than merely idle.
+                    await ReportFailureAsync(ex, stoppingToken);
                 }
             }
             var interval = TimeSpan.FromMinutes(Math.Clamp(s.IntervalMinutes, 5, 1440));
@@ -58,10 +61,30 @@ public sealed class SyncWorker : BackgroundService
         }
     }
 
+    private static string AgentVersion =>
+        typeof(SyncWorker).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
+    /// <summary>A push carrying only the agent report; the server logs it as a failed poll.</summary>
+    private async Task ReportFailureAsync(Exception ex, CancellationToken ct)
+    {
+        try
+        {
+            await _sokisoko.IngestAsync(new IngestBatch
+            {
+                Agent = new AgentReport { Version = AgentVersion, Error = ex.Message },
+            }, ct);
+        }
+        catch (Exception report)
+        {
+            _log.LogWarning(report, "could not report the failure to SokiSoko either");
+        }
+    }
+
     private async Task<int> RunOnceAsync(CancellationToken ct)
     {
         var source = _sourceFactory.Current();
         var n = 0;
+        await SyncCodesAsync(source, ct);
         n += await SyncEntityAsync<InboundProduct>(source, "product",
             (src, since, apply) => src.PollProductsAsync(since, apply, ct));
         n += await SyncEntityAsync<InboundCustomer>(source, "customer",
@@ -85,6 +108,23 @@ public sealed class SyncWorker : BackgroundService
         return await PushAsync(entity, batch, cursor, CancellationToken.None);
     }
 
+    /// <summary>
+    /// Codes go first so a product applied later can be labelled with its group name, and
+    /// so warehouse mapping screens have names before the stock arrives.
+    /// </summary>
+    private async Task SyncCodesAsync(IErpSource source, CancellationToken ct)
+    {
+        if (source is not IErpCodeSource lister) return;
+        var codes = await lister.PollCodesAsync(ct);
+        if (codes.Count == 0) return;
+        await _sokisoko.IngestAsync(new IngestBatch
+        {
+            Codes = codes,
+            Agent = new AgentReport { Version = AgentVersion },
+        }, ct);
+        _log.LogInformation("codes: pushed {Count} names", codes.Count);
+    }
+
     private async Task<int> SyncStockAsync(IErpSource source, CancellationToken ct)
     {
         var batch = new List<InboundStock>();
@@ -106,7 +146,7 @@ public sealed class SyncWorker : BackgroundService
         var size = Math.Max(1, _settings.Current.BatchSize);
         for (var i = 0; i < records.Count; i += size)
         {
-            var batch = new IngestBatch();
+            var batch = new IngestBatch { Agent = new AgentReport { Version = AgentVersion } };
             var slice = records.GetRange(i, Math.Min(size, records.Count - i));
             switch (entity)
             {

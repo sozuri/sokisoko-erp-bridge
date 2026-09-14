@@ -11,17 +11,20 @@ namespace SokiSoko.SapBridge.Sql;
 public static class SqlMapper
 {
     /// <summary>
-    /// B1 splits change tracking across UpdateDate (a date) and UpdateTime (an int, HHmm
-    /// in older builds, HHmmss in newer). Joined into the same yyyy-MM-ddTHH:mm:ss cursor
-    /// the Service Layer path emits, so cursors are interchangeable between providers.
+    /// B1 splits change tracking across UpdateDate (a datetime, time component always
+    /// midnight) and UpdateTS (an int). UpdateTS is HHmmss with leading zeros dropped, so
+    /// 141654 is 14:16:54 and 11647 is 01:16:47 - never HHmm. Joined into the same
+    /// yyyy-MM-ddTHH:mm:ss cursor the Service Layer path emits, so the two providers'
+    /// cursors are interchangeable and switching does not force a re-backfill.
     /// </summary>
     public static string Stamp(DateTime? date, int? time)
     {
         if (date is null) return "";
         var d = date.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var t = time ?? 0;
-        // 930 -> 00:09:30 would be wrong; B1 stores 930 meaning 09:30.
-        var (hh, mm, ss) = t > 99999 ? (t / 10000, t / 100 % 100, t % 100) : (t / 100, t % 100, 0);
+        var hh = t / 10000;
+        var mm = t / 100 % 100;
+        var ss = t % 100;
         if (hh > 23 || mm > 59 || ss > 59) return d;
         return $"{d}T{hh:D2}:{mm:D2}:{ss:D2}";
     }
