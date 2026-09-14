@@ -7,7 +7,7 @@
     <RootNamespace>SokiSoko.SapBridge</RootNamespace>
     <AssemblyName>SokiSoko.SapBridge</AssemblyName>
     <!-- Keep in step with the release tag; surfaced by /api/health and the exe's file version. -->
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <!-- Single-file, self-contained Windows build: dotnet publish -c Release -r win-x64 -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- SqlClient ships a native SNI dll; without this it is emitted beside the exe and

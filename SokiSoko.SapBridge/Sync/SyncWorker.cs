@@ -1,3 +1,4 @@
+using System.Globalization;
 using SokiSoko.SapBridge.Config;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -80,18 +81,42 @@ public sealed class SyncWorker : BackgroundService
         }
     }
 
+    /// <summary>Local bookkeeping only; never sent to the server, which knows nothing of it.</summary>
+    private const string FullScanKey = "_full_scan_at";
+
+    /// <summary>
+    /// B1 moves LastPurPrc on a goods receipt and ITM1 prices on a price-list edit without
+    /// touching OITM.UpdateDate - ITM1 has no change column at all - so a delta never sees
+    /// either. Re-reading both in full on a slower cadence is the only reliable way to
+    /// notice; the server skips rows that did not change.
+    /// </summary>
+    private bool FullScanDue()
+    {
+        var last = _cursors.Get(FullScanKey);
+        if (!DateTimeOffset.TryParse(last, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind, out var at)) return true;
+        var every = TimeSpan.FromMinutes(Math.Clamp(_settings.Current.FullScanMinutes, 5, 1440));
+        return DateTimeOffset.UtcNow - at >= every;
+    }
+
     private async Task<int> RunOnceAsync(CancellationToken ct)
     {
         var source = _sourceFactory.Current();
+        var fullScan = FullScanDue();
+        if (fullScan) _log.LogInformation("full scan due: re-reading all products and prices");
+
         var n = 0;
         await SyncCodesAsync(source, ct);
         n += await SyncEntityAsync<InboundProduct>(source, "product",
-            (src, since, apply) => src.PollProductsAsync(since, apply, ct));
+            (src, since, apply) => src.PollProductsAsync(fullScan ? "" : since, apply, ct));
         n += await SyncEntityAsync<InboundCustomer>(source, "customer",
             (src, since, apply) => src.PollCustomersAsync(since, apply, ct));
         n += await SyncStockAsync(source, ct);
         n += await SyncEntityAsync<InboundPrice>(source, "price",
-            (src, since, apply) => src.PollPricesAsync(since, apply, ct));
+            (src, since, apply) => src.PollPricesAsync(fullScan ? "" : since, apply, ct));
+
+        // Stamped only after both pushes succeed, so a failed run scans again next time.
+        if (fullScan) _cursors.Set(FullScanKey, DateTimeOffset.UtcNow.ToString("o"));
         return n;
     }
 

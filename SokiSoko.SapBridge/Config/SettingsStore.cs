@@ -117,6 +117,11 @@ public sealed record BridgeSettings
     public long SokisokoConnectionId { get; set; }
     public int IntervalMinutes { get; set; } = 5;
     public int BatchSize { get; set; } = 200;
+    /// <summary>
+    /// How often products and prices are re-read in full. Neither cost nor price-list
+    /// changes move any column the delta can see, so a delta alone never notices them.
+    /// </summary>
+    public int FullScanMinutes { get; set; } = 60;
 
     public bool ErpConfigured => ErpType switch
     {
