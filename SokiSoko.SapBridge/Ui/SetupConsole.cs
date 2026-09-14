@@ -11,7 +11,7 @@ namespace SokiSoko.SapBridge.Ui;
 
 /// <summary>
 /// Loopback-only setup console on http://127.0.0.1:8735: edit settings (secrets DPAPI-sealed
-/// on save), test the B1 and Sokisoko connections, and watch sync status. No auth â€” it only
+/// on save), test the B1 and Sokisoko connections, and watch sync status. No auth Ã¢â¬— it only
 /// listens on localhost, same trust boundary as editing the file as the service account.
 /// </summary>
 public sealed class SetupConsole : BackgroundService
@@ -190,7 +190,7 @@ public sealed class SetupConsole : BackgroundService
         }
     }
 
-    /// <summary>Plain JSON health for external monitors (Uptime Kuma etc.) â€” no secrets.</summary>
+    /// <summary>Plain JSON health for external monitors (Uptime Kuma etc.) Ã¢â¬— no secrets.</summary>
     private object GetHealth() => new
     {
         status = _settings.Current.IsConfigured ? "healthy" : "unconfigured",
@@ -229,7 +229,7 @@ code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}
 .hidden{display:none}
 </style></head><body>
 <h1>SokiSoko ERP Bridge</h1>
-<div id="status" class="card">loadingâ€¦</div>
+<div id="status" class="card">loading…</div>
 
 <div class="card"><h2>ERP system</h2>
 <label>Sync from<select id="erptype" onchange="showErp()">
@@ -270,7 +270,7 @@ Layer is unavailable. Read-only &mdash; grant the login <code>SELECT</code> and 
 
 <div class="card"><h2>SokiSoko</h2>
 <label>Base URL<input id="skurl" placeholder="https://your-sokisoko.example.com"></label>
-<label>API key (erp.manage) <span id="skkeyset"></span><input id="skkey" type="password" placeholder="tgk_â€¦ â€” leave blank to keep current"></label>
+<label>API key (erp.manage) <span id="skkeyset"></span><input id="skkey" type="password" placeholder="tgk_Ã¢â¬Â¦ Ã¢â¬— leave blank to keep current"></label>
 <label>Connection ID<input id="skconn" type="number" placeholder="from Settings â†’ ERP sync"></label>
 <div class="row"><div><label>Interval (min)<input id="interval" type="number" value="5"></label></div>
 <div><label>Batch size<input id="batch" type="number" value="200"></label></div>
@@ -305,8 +305,8 @@ async function loadSettings(){
 async function loadStatus(){
  const st=await api('/api/status');
  // must be $('status'): bare `status` resolves to window.status (a string), not this element
- $('status').innerHTML='<h2>Status</h2>'+(st.configured?'':'<p class="bad">Not configured yet â€” fill both sections and Save.</p>')
-  +'<p>'+(st.running?'sync runningâ€¦':(st.lastRunAt?((st.lastRunOk?'<span class="ok">last run ok':'<span class="bad">last run failed')+'</span> â€” '+st.lastRunAt+' â€” '+st.lastRunRecords+' records'):'no sync run yet'))+'</p>'
+ $('status').innerHTML='<h2>Status</h2>'+(st.configured?'':'<p class="bad">Not configured yet Ã¢â¬— fill both sections and Save.</p>')
+  +'<p>'+(st.running?'sync runningÃ¢â¬Â¦':(st.lastRunAt?((st.lastRunOk?'<span class="ok">last run ok':'<span class="bad">last run failed')+'</span> Ã¢â¬— '+st.lastRunAt+' Ã¢â¬— '+st.lastRunRecords+' records'):'no sync run yet'))+'</p>'
   +(st.lastError?'<p class="bad">'+st.lastError+'</p>':'')
   +'<p>Recent:</p><code>'+(st.recent||[]).join('<br>')+'</code>';
 }
@@ -325,11 +325,11 @@ async function save(){
  if(odpw.value)body.odooPassword=odpw.value;
  if(skkey.value)body.sokisokoApiKey=skkey.value;
  const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
- const j=await r.json();msg.className=j.ok?'ok':'bad';msg.textContent=j.ok?'saved â€” the next sync run uses these settings':'save failed';
+ const j=await r.json();msg.className=j.ok?'ok':'bad';msg.textContent=j.ok?'saved Ã¢â¬— the next sync run uses these settings':'save failed';
  b1pw.value='';sqlpw.value='';skkey.value='';load();
 }
-async function testErp(){msg.className='';msg.textContent='testing ERPâ€¦';const j=await api('/api/test-erp','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'ERP OK â€” ':'ERP FAILED â€” ')+j.detail;}
-async function testSokisoko(){msg.className='';msg.textContent='testing SokiSokoâ€¦';const j=await api('/api/test-sokisoko','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'SokiSoko OK â€” ':'SokiSoko FAILED â€” ')+j.detail;}
+async function testErp(){msg.className='';msg.textContent='testing ERPÃ¢â¬Â¦';const j=await api('/api/test-erp','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'ERP OK Ã¢â¬— ':'ERP FAILED Ã¢â¬— ')+j.detail;}
+async function testSokisoko(){msg.className='';msg.textContent='testing SokiSokoÃ¢â¬Â¦';const j=await api('/api/test-sokisoko','POST');msg.className=j.ok?'ok':'bad';msg.textContent=(j.ok?'SokiSoko OK Ã¢â¬— ':'SokiSoko FAILED Ã¢â¬— ')+j.detail;}
 async function load(){await loadSettings();await loadStatus();}
 load();setInterval(loadStatus,15000);
 </script></body></html>
